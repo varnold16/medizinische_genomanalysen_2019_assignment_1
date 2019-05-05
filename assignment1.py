@@ -72,7 +72,9 @@ class Assignment1:
 
                     attributes_of_all_transcripts.append(transcript_attributes)
 
-                    fh.write(separator.join(str(transcript_attributes))+"\n")
+
+            for transcript in attributes_of_all_transcripts:
+                fh.write(separator.join(str(attribute) for attribute in transcript)+"\n")
 
         ## Close cursor & connection
         cursor.close()
@@ -100,30 +102,32 @@ class Assignment1:
         else:
             strand = "unknown orientation"
 
-        print("Location:".ljust(20, " ")+chromosome+": "+start_position+"-"+stop_position+" "+strand)
-
-        print(" " * 20 +"(" + self.genome_reference +" coordinates of transcript " + self.transcript_info[1] + ")")
+        print(("Location:").ljust(20, " ")+
+              chromosome+": "+start_position+"-"+stop_position+" "+strand)
 
         
     def get_gene_symbol(self):
 
         gene_symbol = self.transcript_attributes[0]
 
+        transcript = self.transcript_attributes[1]
+
+        print("Genome reference:".ljust(20, " ")+self.genome_reference)
         print("Gene symbol:".ljust(20, " ")+gene_symbol)
+        print("Transcript:".ljust(20, " ")+transcript)
 
                         
     def get_sam_header(self):
-        print("Sam Header: ")
-        for key, value in self.samfile.header['HD'].items():
-            if key == "SO":
-                print("Sorting order of alignments (SO): ", value)
-            if key == "VN":
-                print("Format version (VN): ", value)
-            if key == "GO":
-                print("Grouping of alignments (GO): ", value)
 
-                print()
-        
+        header = self.samfile.header["HD"]
+
+        headerline = ""
+
+        for key in header:
+            headerline += key+": "+header[key]+"\t"
+
+        print("Header:".ljust(20, " ")+headerline)
+
     def get_properly_paired_reads_of_gene(self):
         print("todo")
         
