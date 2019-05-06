@@ -1,5 +1,6 @@
 import mysql.connector
 import pysam
+import os
 
 __author__ = 'ARNOLD Vivienne'
 
@@ -22,12 +23,18 @@ class Assignment1:
 
         self.output_file = output_file
 
-        self.transcript_info = self.download_gene_coordinates()
+        if os.path.exists(output_file) and os.path.isfile(output_file):
+            print("Fetch data from file <"+output_file+">")
+
+            file = open(output_file, "r")
+            self.transcript_info = file.readline().strip("\n").split("\t")
+
+        else:
+            self.transcript_info = self.download_gene_coordinates()
 
     
     def download_gene_coordinates(self):
-        ## TODO concept
-        
+
         print("Connecting to UCSC to fetch data")
         
         ## Open connection
@@ -57,24 +64,16 @@ class Assignment1:
         attributes_of_all_transcripts = []
         separator = '\t'
 
-        ## Write to file
-        ## TODO this may need some work 
-        with open(self.output_file, "w") as fh:
+        for row in cursor:
 
-            for row in cursor:
+            if row[0] == self.gene:
 
-                if row[0] == self.gene:
+                transcript_attributes = []
 
-                    transcript_attributes = []
+                for query_field in row:
+                    transcript_attributes.append(query_field)
 
-                    for query_field in row:
-                        transcript_attributes.append(query_field)
-
-                    attributes_of_all_transcripts.append(transcript_attributes)
-
-
-            for transcript in attributes_of_all_transcripts:
-                fh.write(separator.join(str(attribute) for attribute in transcript)+"\n")
+                attributes_of_all_transcripts.append(transcript_attributes)
 
         ## Close cursor & connection
         cursor.close()
@@ -82,7 +81,11 @@ class Assignment1:
         
         print("Done fetching data")
 
-        self.transcript_attributes = attributes_of_all_transcripts[0]
+        transcript_attributes = attributes_of_all_transcripts[0]
+
+        ## Write to file
+        with open(self.output_file, "w") as fh:
+            fh.write(separator.join(str(attribute) for attribute in transcript_attributes) + "\n")
 
         return transcript_attributes
 
@@ -91,9 +94,9 @@ class Assignment1:
 
         chromosome = "Chromosome "+ self.transcript_info[2][3:]
 
-        start_position = format(self.transcript_info[3], "08,d")
+        start_position = format(int(self.transcript_info[3]), "08,d")
 
-        stop_position = format(self.transcript_info[4], "08,d")
+        stop_position = format(int(self.transcript_info[4]), "08,d")
 
         if self.transcript_info[5] == "-":
             strand = "reverse strand"
@@ -108,9 +111,9 @@ class Assignment1:
         
     def get_gene_symbol(self):
 
-        gene_symbol = self.transcript_attributes[0]
+        gene_symbol = self.transcript_info[0]
 
-        transcript = self.transcript_attributes[1]
+        transcript = self.transcript_info[1]
 
         print("Genome reference:".ljust(20, " ")+self.genome_reference)
         print("Gene symbol:".ljust(20, " ")+gene_symbol)
