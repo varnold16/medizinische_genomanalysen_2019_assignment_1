@@ -13,12 +13,14 @@ __author__ = 'ARNOLD Vivienne'
 class Assignment1:
     
     def __init__(self, gene_of_interest, genome_reference, bam_file, output_file):
-        ## gene of interest
+
         self.gene = gene_of_interest
 
         self.genome_reference = genome_reference
 
-        ## open bamfile as samfile
+        self.bam_file = bam_file
+
+        # open bamfile as samfile
         self.samfile = pysam.AlignmentFile(bam_file, "rb")
 
         self.output_file = output_file
@@ -32,7 +34,22 @@ class Assignment1:
         else:
             self.transcript_info = self.download_gene_coordinates()
 
-    
+        self.gene_symbol = self.transcript_info[0]
+
+        self.transcript = self.transcript_info[1]
+
+        self.chromosome = self.transcript_info[2][3:]
+
+        self.start_position = int(self.transcript_info[3])
+
+        self.stop_position = int(self.transcript_info[4])
+
+        self.strand = self.transcript_info[5]
+
+        self.number_of_exons = int(self.transcript_info[6])
+
+        self.exon_coordinates = self.get_exon_coordinates()
+
     def download_gene_coordinates(self):
 
         print("Connecting to UCSC to fetch data")
@@ -89,47 +106,68 @@ class Assignment1:
 
         return transcript_attributes
 
-        
-    def get_coordinates_of_gene(self):
-
-        chromosome = "Chromosome "+ self.transcript_info[2][3:]
-
-        start_position = format(int(self.transcript_info[3]), "08,d")
-
-        stop_position = format(int(self.transcript_info[4]), "08,d")
-
-        if self.transcript_info[5] == "-":
-            strand = "reverse strand"
-        elif self.transcript_info[5] == "+":
-            strand = "forward strand"
-        else:
-            strand = "unknown orientation"
-
-        print(("Location:").ljust(20, " ")+
-              chromosome+": "+start_position+"-"+stop_position+" "+strand)
-
-        
-    def get_gene_symbol(self):
-
-        gene_symbol = self.transcript_info[0]
-
-        transcript = self.transcript_info[1]
+    def print_gene_symbol(self):
 
         print("Genome reference:".ljust(20, " ")+self.genome_reference)
-        print("Gene symbol:".ljust(20, " ")+gene_symbol)
-        print("Transcript:".ljust(20, " ")+transcript)
 
-                        
-    def get_sam_header(self):
+        print("Gene symbol:".ljust(20, " ")+self.gene_symbol)
+
+        print("Transcript:".ljust(20, " ")+self.transcript)
+
+    def print_coordinates_of_gene(self):
+
+        string_chromosome = "Chromosome "+ self.chromosome
+
+        string_start_position = format(self.start_position, "08,d")
+
+        string_stop_position = format(self.stop_position, "08,d")
+
+        if self.strand == "-":
+            string_strand = "reverse strand"
+        elif self.strand == "+":
+            string_strand = "forward strand"
+        else:
+            string_strand = "unknown orientation"
+
+        print(("Location:").ljust(20, " ")+
+                  string_chromosome+": "+string_start_position+"-"+string_stop_position+" "+string_strand)
+
+    def print_number_of_exons(self):
+
+        print("Number of exons:".ljust(20, " ")+str(self.number_of_exons))
+
+    def get_exon_coordinates(self):
+
+        start_of_exons = self.transcript_info[7].strip("b\'").strip(",\'").split(",")
+
+        stop_of_exons = self.transcript_info[8].strip("b\'").strip(",\'").split(",")
+
+        list_of_exon_coordinates = []
+
+        for exon in range(self.number_of_exons):
+            list_of_exon_coordinates.append([int(start_of_exons[exon]), int(stop_of_exons[exon])])
+
+        return list_of_exon_coordinates
+
+    def print_region_of_gene(self):
+
+        print("Coordinates:".ljust(20, " ")+"Exon"+" "*6+"Start".ljust(15, " ")+"End")
+
+        for exon in range(self.number_of_exons):
+            print(" "*20+(str(exon+1)).ljust(10, " ")+
+                  format(self.exon_coordinates[exon][0], "08,d").ljust(15, " ")+
+                  format(self.exon_coordinates[exon][1], "08,d"))
+
+    def print_sam_header(self):
 
         header = self.samfile.header["HD"]
 
         headerline = ""
 
         for key in header:
-            headerline += key+": "+header[key]+"\t"
+            headerline += key + ": " + header[key] + "\t"
 
-        print("Header:".ljust(20, " ")+headerline)
+        print("Samfile header:".ljust(20, " ") + headerline)
 
     def get_properly_paired_reads_of_gene(self):
         print("todo")
@@ -146,35 +184,46 @@ class Assignment1:
     def get_number_mapped_reads(self):
         print("todo")
 
-    def get_region_of_gene(self):
-        print("todo")
-        
-    def get_number_of_exons(self):
-        print("ads")
-    
-    
     def print_summary(self):
-        self.get_gene_symbol()
 
-        self.get_coordinates_of_gene()
+        separate_blocks = "\n"+"="*80+"\n"
 
-        self.get_sam_header()
+        print(separate_blocks)
+
+        print("Information to selected gene\n")
+
+        self.print_gene_symbol()
+
+        self.print_coordinates_of_gene()
+
+        print()
+
+        self.print_number_of_exons()
+
+        self.print_region_of_gene()
+
+        print(separate_blocks)
+
+        print("Information to selected bam-file <"+self.bam_file+">\n")
+
+        self.print_sam_header()
+
+        print(separate_blocks)
 
 
-
-        print("Print all results here")
     
     
 def main():
-    print("Assignment 1")
+    print("Assignment 1\n")
+
     assignment1 = Assignment1("KCNE1", "hg38", "chr21.bam", "KCNE1_transcripts.txt")
-    print(assignment1.transcript_info)
+
     assignment1.print_summary()
-    
-    
+
     print("Done with assignment 1")
-    
-        
+
+    assignment1.get_exon_coordinates()
+
 if __name__ == '__main__':
     main()
     
