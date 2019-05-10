@@ -12,7 +12,7 @@ __author__ = 'ARNOLD Vivienne'
 
 class Assignment1:
     
-    def __init__(self, gene_of_interest, genome_reference, bam_file, output_file):
+    def __init__(self, gene_of_interest, genome_reference, bam_file, bai_file, output_file):
 
         self.gene = gene_of_interest
 
@@ -22,6 +22,8 @@ class Assignment1:
 
         # open bamfile as samfile
         self.samfile = pysam.AlignmentFile(bam_file, "rb")
+
+        self.bai_file = bai_file
 
         self.output_file = output_file
 
@@ -167,14 +169,34 @@ class Assignment1:
         for key in header:
             headerline += key + ": " + header[key] + "\t"
 
-        print("Samfile header:".ljust(20, " ") + headerline)
+        print("Samfile header:".ljust(25, " ") + headerline + "\n")
 
-    def get_properly_paired_reads_of_gene(self):
-        print("todo")
+    def get_reads_of_gene(self):
+
+        reads_of_gene = self.samfile.fetch("chr" + self.chromosome, self.start_position, self.stop_position)
+
+        return reads_of_gene
+
+    def print_number_of_properly_paired_reads_of_gene(self):
+        counter_properly_paired_reads = 0
+
+        for read in self.get_reads_of_gene():
+            if read.is_proper_pair:
+                counter_properly_paired_reads += 1
+
+        print("Properly paired reads:".ljust(25, " ") + str(counter_properly_paired_reads))
         
-    def get_gene_reads_with_indels(self):
-        print("todo")
-        
+    def print_number_of_gene_reads_with_indels(self):
+        counter_reads_with_indels = 0
+
+        for pileupcolumn in self.samfile.pileup("chr" + self.chromosome, self.start_position, self.stop_position):
+            for pileupread in pileupcolumn.pileups:
+                if pileupread.indel:
+                   #print(pileupread)
+                   counter_reads_with_indels +=1
+
+        print("Reads with indels:".ljust(25, " ") + str(counter_reads_with_indels))
+
     def calculate_total_average_coverage(self):
         print("todo")
         
@@ -208,15 +230,16 @@ class Assignment1:
 
         self.print_sam_header()
 
+        self.print_number_of_properly_paired_reads_of_gene()
+
+        self.print_number_of_gene_reads_with_indels()
+
         print(separate_blocks)
 
-
-    
-    
 def main():
     print("Assignment 1\n")
 
-    assignment1 = Assignment1("KCNE1", "hg38", "chr21.bam", "KCNE1_transcripts.txt")
+    assignment1 = Assignment1("KCNE1", "hg38", "chr21.bam", "chr21.bam.bai", "KCNE1_transcripts.txt")
 
     assignment1.print_summary()
 
@@ -226,5 +249,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
-    
