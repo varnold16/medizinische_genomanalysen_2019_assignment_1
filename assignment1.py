@@ -1,6 +1,8 @@
 import mysql.connector
 import pysam
 import os
+import pybedtools
+import numpy
 
 __author__ = 'ARNOLD Vivienne'
 
@@ -12,54 +14,38 @@ __author__ = 'ARNOLD Vivienne'
 
 class Assignment1:
     
-    def __init__(self, gene_of_interest, genome_reference, bam_file, bai_file, output_file):
+    def __init__(self, gene_of_interest, genome_reference, bam_file, output_file):
 
+        # define parameters
         self.gene = gene_of_interest
-
         self.genome_reference = genome_reference
-
         self.bam_file = bam_file
-
-        # open bamfile as samfile
-        self.samfile = pysam.AlignmentFile(bam_file, "rb")
-
-        self.bai_file = bai_file
-
+        self.alignment_file = pysam.AlignmentFile(bam_file, "rb")
         self.output_file = output_file
 
+        # get information to gene
         if os.path.exists(output_file) and os.path.isfile(output_file):
             print("Fetch data from file <"+output_file+">")
-
             file = open(output_file, "r")
             self.transcript_info = file.readline().strip("\n").split("\t")
-
         else:
             self.transcript_info = self.download_gene_coordinates()
-
         self.gene_symbol = self.transcript_info[0]
-
         self.transcript = self.transcript_info[1]
-
-        self.chromosome = self.transcript_info[2][3:]
-
+        self.chromosome = self.transcript_info[2]
         self.start_position = int(self.transcript_info[3])
-
         self.stop_position = int(self.transcript_info[4])
-
         self.strand = self.transcript_info[5]
-
         self.number_of_exons = int(self.transcript_info[6])
-
         self.exon_coordinates = self.get_exon_coordinates()
 
     def download_gene_coordinates(self):
-
         print("Connecting to UCSC to fetch data")
-        
+
         ## Open connection
         cnx = mysql.connector.connect(host='genome-mysql.cse.ucsc.edu', user='genomep', passwd='password',
                                       db=self.genome_reference)
-        
+
         ## Get cursor
         cursor = cnx.cursor()
         
@@ -84,9 +70,7 @@ class Assignment1:
         separator = '\t'
 
         for row in cursor:
-
             if row[0] == self.gene:
-
                 transcript_attributes = []
 
                 for query_field in row:
@@ -109,19 +93,13 @@ class Assignment1:
         return transcript_attributes
 
     def print_gene_symbol(self):
-
         print("Genome reference:".ljust(20, " ")+self.genome_reference)
-
         print("Gene symbol:".ljust(20, " ")+self.gene_symbol)
-
         print("Transcript:".ljust(20, " ")+self.transcript)
 
     def print_coordinates_of_gene(self):
-
-        string_chromosome = "Chromosome "+ self.chromosome
-
+        string_chromosome = "Chromosome "+self.chromosome[3:]
         string_start_position = format(self.start_position, "08,d")
-
         string_stop_position = format(self.stop_position, "08,d")
 
         if self.strand == "-":
@@ -134,16 +112,9 @@ class Assignment1:
         print(("Location:").ljust(20, " ")+
                   string_chromosome+": "+string_start_position+"-"+string_stop_position+" "+string_strand)
 
-    def print_number_of_exons(self):
-
-        print("Number of exons:".ljust(20, " ")+str(self.number_of_exons))
-
     def get_exon_coordinates(self):
-
         start_of_exons = self.transcript_info[7].strip("b\'").strip(",\'").split(",")
-
         stop_of_exons = self.transcript_info[8].strip("b\'").strip(",\'").split(",")
-
         list_of_exon_coordinates = []
 
         for exon in range(self.number_of_exons):
@@ -151,7 +122,8 @@ class Assignment1:
 
         return list_of_exon_coordinates
 
-    def print_region_of_gene(self):
+    def print_exon_information(self):
+        print("Number of exons:".ljust(20, " ")+str(self.number_of_exons))
 
         print("Coordinates:".ljust(20, " ")+"Exon"+" "*6+"Start".ljust(15, " ")+"End")
 
@@ -161,26 +133,18 @@ class Assignment1:
                   format(self.exon_coordinates[exon][1], "08,d"))
 
     def print_sam_header(self):
-
-        header = self.samfile.header["HD"]
-
+        header = self.alignment_file.header["HD"]
         headerline = ""
 
         for key in header:
             headerline += key + ": " + header[key] + "\t"
 
-        print("Samfile header:".ljust(25, " ") + headerline + "\n")
-
-    def get_reads_of_gene(self):
-
-        reads_of_gene = self.samfile.fetch("chr" + self.chromosome, self.start_position, self.stop_position)
-
-        return reads_of_gene
+        print("Samfile header:".ljust(25, " ")+headerline)
 
     def print_number_of_properly_paired_reads_of_gene(self):
         counter_properly_paired_reads = 0
 
-        for read in self.get_reads_of_gene():
+        for read in self.alignment_file.fetch(self.chromosome, self.start_position, self.stop_position):
             if read.is_proper_pair:
                 counter_properly_paired_reads += 1
 
@@ -189,63 +153,77 @@ class Assignment1:
     def print_number_of_gene_reads_with_indels(self):
         counter_reads_with_indels = 0
 
-        for pileupcolumn in self.samfile.pileup("chr" + self.chromosome, self.start_position, self.stop_position):
+        for pileupcolumn in self.alignment_file.pileup(self.chromosome, self.start_position, self.stop_position):
             for pileupread in pileupcolumn.pileups:
                 if pileupread.indel:
-                   #print(pileupread)
                    counter_reads_with_indels +=1
 
         print("Reads with indels:".ljust(25, " ") + str(counter_reads_with_indels))
 
-    def calculate_total_average_coverage(self):
-        print("todo")
-        
-    def calculate_gene_average_coverage(self):
-        print("todo")
-        
-    def get_number_mapped_reads(self):
-        print("todo")
+    def print_total_average_coverage(self):
+        coverage_sum = 0
+        counter_column = 0
+
+        for pileupcolumn in self.alignment_file.pileup(self.chromosome):
+            coverage_sum += pileupcolumn.n
+            counter_column += 1
+
+        averageGene = round((coverage_sum / counter_column), 1)
+
+        print("Mean total coverage2:".ljust(25, " ")+str(averageGene)+" %")
+
+    def print_average_gene_coverage(self):
+        coverage_sum = 0
+        counter_column = 0
+
+        for pileupcolumn in self.alignment_file.pileup(self.chromosome, self.start_position, self.stop_position):
+            coverage_sum += pileupcolumn.n
+            counter_column += 1
+
+        average_gene_coverage = round((coverage_sum / counter_column), 1)
+
+        print("Mean gene coverage:".ljust(25, " ")+str(average_gene_coverage)+" %")
+
+    def print_number_mapped_reads(self):
+        counter_all_reads = 0
+        counter_mapped_reads = 0
+
+        for read in self.alignment_file:
+            counter_all_reads += 1
+            if not read.is_unmapped:
+                counter_mapped_reads += 1
+
+        print("Mapped reads:".ljust(25, " ")+format(counter_mapped_reads, "08,d")+
+              " of "+format(counter_all_reads, "08,d")+" reads")
 
     def print_summary(self):
-
         separate_blocks = "\n"+"="*80+"\n"
 
         print(separate_blocks)
-
         print("Information to selected gene\n")
-
         self.print_gene_symbol()
-
         self.print_coordinates_of_gene()
 
         print()
-
-        self.print_number_of_exons()
-
-        self.print_region_of_gene()
-
+        self.print_exon_information()
         print(separate_blocks)
 
-        print("Information to selected bam-file <"+self.bam_file+">\n")
-
+        print("Information to bamfile <"+self.bam_file+">\n")
         self.print_sam_header()
-
         self.print_number_of_properly_paired_reads_of_gene()
-
         self.print_number_of_gene_reads_with_indels()
-
+        self.print_total_average_coverage()
+        self.print_average_gene_coverage()
+        self.print_number_mapped_reads()
         print(separate_blocks)
 
 def main():
     print("Assignment 1\n")
-
-    assignment1 = Assignment1("KCNE1", "hg38", "chr21.bam", "chr21.bam.bai", "KCNE1_transcripts.txt")
-
+    assignment1 = Assignment1("KCNE1", "hg38", "chr21.bam", "KCNE1_transcripts.txt")
     assignment1.print_summary()
-
     print("Done with assignment 1")
+    assignment1.alignment_file.close()
 
-    assignment1.get_exon_coordinates()
 
 if __name__ == '__main__':
     main()
