@@ -1,35 +1,38 @@
 import mysql.connector
 import pysam
 import os
-import pybedtools
-import numpy
 
 __author__ = 'ARNOLD Vivienne'
 
 ##
 ## Concept:
-## TODO
-##
+## Init class Assignment1 with name of gene, genome reference, a bam file and a filename for output.
+## Information to gene (transcript, location and gene region) will be shown, as well as a summary of the bam file
+## regarding coverage and reads.
 
 
 class Assignment1:
     
     def __init__(self, gene_of_interest, genome_reference, bam_file, output_file):
 
-        # define parameters
+        ## Define parameters from function call
         self.gene = gene_of_interest
         self.genome_reference = genome_reference
         self.bam_file = bam_file
         self.alignment_file = pysam.AlignmentFile(bam_file, "rb")
         self.output_file = output_file
 
-        # get information to gene
+        ## Get gene information from data base or existing file
         if os.path.exists(output_file) and os.path.isfile(output_file):
             print("Fetch data from file <"+output_file+">")
             file = open(output_file, "r")
             self.transcript_info = file.readline().strip("\n").split("\t")
         else:
             self.transcript_info = self.download_gene_coordinates()
+
+        print("\nPreparing report of <"+str(bam_file)+">")
+
+        ## Set variables for gene information
         self.gene_symbol = self.transcript_info[0]
         self.transcript = self.transcript_info[1]
         self.chromosome = self.transcript_info[2]
@@ -38,6 +41,14 @@ class Assignment1:
         self.strand = self.transcript_info[5]
         self.number_of_exons = int(self.transcript_info[6])
         self.exon_coordinates = self.get_exon_coordinates()
+
+        ## Set variables retrieved from functions
+        self.sam_header = self.get_sam_header()
+        self.number_of_properly_paired_reads = self.get_number_of_properly_paired_reads_of_gene()
+        self.number_of_gene_reads_with_indels = self.get_number_of_gene_reads_with_indels()
+        self.mean_gene_coverage = self.get_average_gene_coverage()
+        self.mean_total_coverage = self.get_total_average_coverage()
+        self.number_of_mapped_reads = self.get_number_mapped_reads()
 
     def download_gene_coordinates(self):
         print("Connecting to UCSC to fetch data")
@@ -69,6 +80,7 @@ class Assignment1:
         attributes_of_all_transcripts = []
         separator = '\t'
 
+        ## Get query entries for selected gene
         for row in cursor:
             if row[0] == self.gene:
                 transcript_attributes = []
@@ -113,8 +125,8 @@ class Assignment1:
                   string_chromosome+": "+string_start_position+"-"+string_stop_position+" "+string_strand)
 
     def get_exon_coordinates(self):
-        start_of_exons = self.transcript_info[7].strip("b\'").strip(",\'").split(",")
-        stop_of_exons = self.transcript_info[8].strip("b\'").strip(",\'").split(",")
+        start_of_exons = str(self.transcript_info[7]).strip("b\'").strip(",\'").split(",")
+        stop_of_exons = str(self.transcript_info[8]).strip("b\'").strip(",\'").split(",")
         list_of_exon_coordinates = []
 
         for exon in range(self.number_of_exons):
@@ -132,25 +144,26 @@ class Assignment1:
                   format(self.exon_coordinates[exon][0], "08,d").ljust(15, " ")+
                   format(self.exon_coordinates[exon][1], "08,d"))
 
-    def print_sam_header(self):
+    def get_sam_header(self):
         header = self.alignment_file.header["HD"]
+
         headerline = ""
 
         for key in header:
             headerline += key + ": " + header[key] + "\t"
 
-        print("Samfile header:".ljust(25, " ")+headerline)
+        return headerline
 
-    def print_number_of_properly_paired_reads_of_gene(self):
+    def get_number_of_properly_paired_reads_of_gene(self):
         counter_properly_paired_reads = 0
 
         for read in self.alignment_file.fetch(self.chromosome, self.start_position, self.stop_position):
             if read.is_proper_pair:
                 counter_properly_paired_reads += 1
 
-        print("Properly paired reads:".ljust(25, " ") + str(counter_properly_paired_reads))
+        return counter_properly_paired_reads
         
-    def print_number_of_gene_reads_with_indels(self):
+    def get_number_of_gene_reads_with_indels(self):
         counter_reads_with_indels = 0
 
         for pileupcolumn in self.alignment_file.pileup(self.chromosome, self.start_position, self.stop_position):
@@ -158,9 +171,9 @@ class Assignment1:
                 if pileupread.indel:
                    counter_reads_with_indels +=1
 
-        print("Reads with indels:".ljust(25, " ") + str(counter_reads_with_indels))
+        return counter_reads_with_indels
 
-    def print_total_average_coverage(self):
+    def get_total_average_coverage(self):
         coverage_sum = 0
         counter_column = 0
 
@@ -168,11 +181,11 @@ class Assignment1:
             coverage_sum += pileupcolumn.n
             counter_column += 1
 
-        averageGene = round((coverage_sum / counter_column), 1)
+        average_total_coverage = round((coverage_sum / counter_column), 1)
 
-        print("Mean total coverage2:".ljust(25, " ")+str(averageGene)+" %")
+        return average_total_coverage
 
-    def print_average_gene_coverage(self):
+    def get_average_gene_coverage(self):
         coverage_sum = 0
         counter_column = 0
 
@@ -182,40 +195,39 @@ class Assignment1:
 
         average_gene_coverage = round((coverage_sum / counter_column), 1)
 
-        print("Mean gene coverage:".ljust(25, " ")+str(average_gene_coverage)+" %")
+        return average_gene_coverage
 
-    def print_number_mapped_reads(self):
-        counter_all_reads = 0
+    def get_number_mapped_reads(self):
         counter_mapped_reads = 0
 
-        for read in self.alignment_file:
-            counter_all_reads += 1
+        for read in self.alignment_file.fetch(self.chromosome, self.start_position, self.stop_position):
             if not read.is_unmapped:
                 counter_mapped_reads += 1
 
-        print("Mapped reads:".ljust(25, " ")+format(counter_mapped_reads, "08,d")+
-              " of "+format(counter_all_reads, "08,d")+" reads")
+        return counter_mapped_reads
 
     def print_summary(self):
         separate_blocks = "\n"+"="*80+"\n"
-
         print(separate_blocks)
+
         print("Information to selected gene\n")
         self.print_gene_symbol()
         self.print_coordinates_of_gene()
-
         print()
         self.print_exon_information()
         print(separate_blocks)
 
-        print("Information to bamfile <"+self.bam_file+">\n")
-        self.print_sam_header()
-        self.print_number_of_properly_paired_reads_of_gene()
-        self.print_number_of_gene_reads_with_indels()
-        self.print_total_average_coverage()
-        self.print_average_gene_coverage()
-        self.print_number_mapped_reads()
+        print("Bamfile information\n")
+        print("Samfile header:".ljust(25, " ")+self.sam_header)
+        print("Mean total coverage:".ljust(25, " ")+str(self.mean_total_coverage)+" %")
+        print()
+        print("Information to selected gene")
+        print("Mapped reads:".ljust(25, " ")+str(self.number_of_mapped_reads))
+        print("Properly paired reads:".ljust(25, " ")+str(self.number_of_properly_paired_reads))
+        print("Reads with indels:".ljust(25, " ")+str(self.number_of_gene_reads_with_indels))
+        print("Mean gene coverage:".ljust(25, " ")+str(self.mean_gene_coverage)+" %")
         print(separate_blocks)
+
 
 def main():
     print("Assignment 1\n")
